@@ -1,6 +1,28 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, expr
 from pyspark.sql.types import StructType, StructField, StringType, FloatType
+from pymongo.errors import ConnectionFailure
+from pymongo import MongoClient
+
+def create_database():
+    try:
+        # Connect to MongoDB server
+        client = MongoClient('mongodb://127.0.0.1:27017/')
+
+        # Check if the database exists
+        if "big_data" in client.list_database_names():
+            print(f"Database already exists.")
+        else:
+            # Create the database by inserting a dummy document into a dummy collection
+            new_db = client["big_data"]
+            processed_data = new_db["db.processed_data"]
+            raw_data = new_db["raw_data"]
+            print(f"Database created successfully.")
+
+    except ConnectionFailure:
+        print("Failed to connect to MongoDB server.")
+    finally:
+        client.close()
 
 def create_spark_connection():
     s_conn = None
@@ -56,6 +78,7 @@ def process_batch(batch_df, batch_id):
 
 if __name__ == "__main__":
     # Create Spark connection
+    create_database()
     spark_conn = create_spark_connection()
     if spark_conn:
         # Connect to Kafka with Spark connection

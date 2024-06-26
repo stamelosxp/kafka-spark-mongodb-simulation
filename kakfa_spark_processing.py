@@ -44,7 +44,7 @@ def connect_to_kafka(spark_conn):
         spark_df = spark_conn.readStream \
             .format('kafka') \
             .option('kafka.bootstrap.servers', 'localhost:9092') \
-            .option('subscribe', 'vehicle_position') \
+            .option('subscribe', 'vehicle_positions') \
             .option('startingOffsets', 'earliest') \
             .load()
     except Exception as e:

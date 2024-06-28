@@ -1,9 +1,10 @@
 from pymongo import MongoClient
 
-def exec_queries():
+def execQueries(db_name, start_time, end_time):
     # Connect to MongoDB
     client = MongoClient('mongodb://127.0.0.1:27017/')
-    db = client.big_data
+
+    db = client.db_name
 
     # Collection for processed data
     collection = db.processed_data
@@ -22,8 +23,7 @@ def exec_queries():
 
     # Question 3: Find the highest spacing during a given time period
     # Assuming the time period is defined as a range of 'time' values
-    start_time = "24/06/2024 19:01:04"
-    end_time = "24/07/2024 19:01:04"
+
     max_spacing = collection.find({
         "time": {"$gte": start_time, "$lte": end_time}
     }).sort("spacing", -1).limit(1)
@@ -35,6 +35,9 @@ def exec_queries():
 
 
 if __name__ == '__main__':
-    exec_queries()
+    dbName = 'big_data'
+    startTime = "24/06/2024 19:01:04"
+    endTime = "24/07/2024 19:01:04"
+    execQueries(dbName, startTime,endTime)
 
 

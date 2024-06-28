@@ -4,17 +4,17 @@ from pyspark.sql.types import StructType, StructField, StringType, FloatType
 from pymongo.errors import ConnectionFailure
 from pymongo import MongoClient
 
-def create_database():
+def createDatabase(dbName):
     try:
         # Connect to MongoDB server
         client = MongoClient('mongodb://127.0.0.1:27017/')
 
         # Check if the database exists
-        if "big_data" in client.list_database_names():
+        if dbName in client.list_database_names():
             print(f"Database already exists.")
         else:
             # Create the database by inserting a dummy document into a dummy collection
-            new_db = client["big_data"]
+            new_db = client[dbName]
             processed_data = new_db["db.processed_data"]
             raw_data = new_db["raw_data"]
             print(f"Database created successfully.")
@@ -24,27 +24,27 @@ def create_database():
     finally:
         client.close()
 
-def create_spark_connection():
+def sparkConn():
     s_conn = None
     try:
         s_conn = SparkSession.builder \
             .appName('KafkaSparkProcessing') \
             .master('spark://bigdata-vm:7077') \
             .config('spark.jars.packages', "org.apache.spark:spark-streaming-kafka-0-10_2.12:3.4.1,org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1,org.mongodb.spark:mongo-spark-connector_2.12:3.0.1") \
-            .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/big_data.big_data") \
+            .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/big_data_testing.big_data_testing") \
             .config("spark.sql.streaming.checkpointLocation", "/tmp/checkpoints") \
             .getOrCreate()
     except Exception as e:
         print(e)
     return s_conn
 
-def connect_to_kafka(spark_conn):
+def kafkaConn(spark_conn, nameTopic):
     spark_df = None
     try:
         spark_df = spark_conn.readStream \
             .format('kafka') \
             .option('kafka.bootstrap.servers', 'localhost:9092') \
-            .option('subscribe', 'vehicle_positions') \
+            .option('subscribe', nameTopic) \
             .option('startingOffsets', 'earliest') \
             .load()
     except Exception as e:
@@ -52,14 +52,14 @@ def connect_to_kafka(spark_conn):
         print(e)
     return spark_df
 
-def write_raw_to_mongo(batch_df, batch_id):
+def rawToMongo(batch_df):
     batch_df.write \
         .format("mongo") \
         .mode("append") \
-        .option("uri", "mongodb://127.0.0.1/big_data.raw_data") \
+        .option("uri", "mongodb://127.0.0.1/big_data_testing.raw_data") \
         .save()
 
-def process_and_write_to_mongo(batch_df, batch_id):
+def processedToMongo(batch_df):
     result_df = batch_df.groupBy("time", "link").agg(
         expr("count(*) as vcount"),
         expr("avg(speed) as vspeed")
@@ -67,22 +67,25 @@ def process_and_write_to_mongo(batch_df, batch_id):
     result_df.write \
         .format("mongo") \
         .mode("append") \
-        .option("uri", "mongodb://127.0.0.1/big_data.processed_data") \
+        .option("uri", "mongodb://127.0.0.1/big_data_testing.processed_data") \
         .save()
 
-def process_batch(batch_df, batch_id):
+def process_batch(batch_df,batch_id):
+    batch_df.show()
     # Write raw data to MongoDB
-    write_raw_to_mongo(batch_df, batch_id)
+    rawToMongo(batch_df)
     # Process data and write to MongoDB
-    process_and_write_to_mongo(batch_df, batch_id)
+    processedToMongo(batch_df)
 
 if __name__ == "__main__":
-    # Create Spark connection
-    create_database()
-    spark_conn = create_spark_connection()
+    dbName = 'big_data'
+    createDatabase(dbName)
+    nameTopic = 'vehicle_positions'
+    spark_conn = sparkConn()
+
     if spark_conn:
         # Connect to Kafka with Spark connection
-        kafka_df = connect_to_kafka(spark_conn)
+        kafka_df = kafkaConn(spark_conn, nameTopic)
         if kafka_df:
             # Define the schema for the JSON data
             schema = StructType([

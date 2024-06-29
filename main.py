@@ -1,9 +1,7 @@
 from uxsim import *
 import pandas as pd
-import time as tm
 from kafka import KafkaProducer
 import json
-from datetime import datetime
 
 def runSimulation(duration, nSec):
 
@@ -100,24 +98,36 @@ def preProcessing(df_vehicles):
 
     return dict_vehicles
 
-def sendToKafka(dict_vehicles, nsec, nameTopic):
-    
+def sendToKafka(df_vehicles, duration, nsec, nameTopic):
+    df_vehicles.rename(columns={'dest': 'destination'}, inplace=True)
+    df_vehicles.rename(columns={'orig': 'origin'}, inplace=True)
+    df_vehicles.rename(columns={'t': 'time'}, inplace=True)
+    df_vehicles.rename(columns={'x': 'position'}, inplace=True)
+    df_vehicles.rename(columns={'s': 'spacing'}, inplace=True)
+    df_vehicles.rename(columns={'v': 'speed'}, inplace=True)
+    df_vehicles = df_vehicles.drop('dn', axis=1)
+    df_vehicles = df_vehicles.sort_values(by=['time'])
+
     producer = KafkaProducer(
         bootstrap_servers='localhost:9092',
         value_serializer=lambda v: json.dumps(v).encode('utf-8')
     )
-    print(f'Producer started: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}')
 
+    print(f'Producer started: {time.strftime("%d/%m/%Y %H:%M:%S", time.localtime())}')
 
-    for time, df in dict_vehicles.items():
-        resDf = df.loc[df['link'] != 'waiting_at_origin_node'].copy()
+    cnt_sec = 0
+    while cnt_sec < duration:
+        resDf = df_vehicles.loc[
+            (df_vehicles['time'] == cnt_sec) & (df_vehicles['link'] != 'waiting_at_origin_node')].copy()
         resDf['time'] = pd.Timestamp.today().strftime("%d/%m/%Y %H:%M:%S")
         resDf.apply(lambda row: producer.send(nameTopic, json.loads(row.to_json())), axis=1)
-        tm.sleep(nsec)
+        cnt_sec += nsec
+        time.sleep(nsec)
 
 
     producer.flush()
-    print(f'Producer ended: {datetime.now().strftime("%d/%m/%Y %H:%M:%S")}')
+    print(f'Producer started: {time.strftime("%d/%m/%Y %H:%M:%S", time.localtime())}')
+
 
 
 if __name__ == '__main__':
@@ -127,7 +137,5 @@ if __name__ == '__main__':
     nameTopic = 'vehicle_positions'
 
     df_vehicles = runSimulation(durSimulation, nSec)
-    dict_vehicles = preProcessing(df_vehicles)
-
-    sendToKafka(dict_vehicles, nSec, nameTopic)
+    sendToKafka(df_vehicles, durSimulation, nSec, nameTopic)
 

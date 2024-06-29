@@ -1,43 +1,66 @@
 from pymongo import MongoClient
+import pandas as pd
+from datetime import datetime
 
-def execQueries(db_name, start_time, end_time):
+def execQueries(db_name, start_time_str, end_time_str):
     # Connect to MongoDB
     client = MongoClient('mongodb://127.0.0.1:27017/')
-
-    db = client.db_name
+    db = client[db_name]
 
     # Collection for processed data
     collection = db.processed_data
 
-    # Question 1: Find the link with the smallest vehicle count
-    min_vcount = collection.find().sort("vcount", 1).limit(1)
-    print("Link with the smallest vehicle count:")
-    for doc in min_vcount:
-        print(doc)
+    # Convert time strings to datetime objects
+    start_time = datetime.strptime(start_time_str, "%d/%m/%Y %H:%M:%S")
+    end_time = datetime.strptime(end_time_str, "%d/%m/%Y %H:%M:%S")
 
-    # Question 2: Find the link with the highest average speed
-    max_vspeed = collection.find().sort("vspeed", -1).limit(1)
-    print("Link with the highest average speed:")
-    for doc in max_vspeed:
-        print(doc)
+    # Fetch data from the collection within the specified time range
+    data = list(collection.find({
+        "time": {
+            "$gte": start_time.strftime("%d/%m/%Y %H:%M:%S"),
+            "$lte": end_time.strftime("%d/%m/%Y %H:%M:%S")
+        }
+    }))
 
-    # Question 3: Find the highest spacing during a given time period
-    # Assuming the time period is defined as a range of 'time' values
+    if not data:
+        raise ValueError("No data found in the collection within the specified time range.")
 
-    max_spacing = collection.find({
-        "time": {"$gte": start_time, "$lte": end_time}
-    }).sort("spacing", -1).limit(1)
-    print(f"Highest spacing between {start_time} and {end_time}:")
-    for doc in max_spacing:
-        print(doc)
+    # Print keys to debug the structure of the data
+    print(f"Keys in the data: {data[0].keys()}")
 
-    client.close()
+    # Convert the data into a DataFrame
+    df = pd.DataFrame(data)
 
+    # Ensure necessary columns are present
+    if 'vcount' not in df.columns or 'vspeed' not in df.columns or 'link' not in df.columns:
+        raise ValueError("The necessary columns are not present in the data.")
 
-if __name__ == '__main__':
-    dbName = 'big_data'
-    startTime = "24/06/2024 19:01:04"
-    endTime = "24/07/2024 19:01:04"
-    execQueries(dbName, startTime,endTime)
+    # Convert relevant fields to numeric types
+    df['vcount'] = df['vcount']
+    df['vspeed'] = df['vspeed']
 
+    # Find the edge with the smallest vehicle count
+    min_vcount_edge = df.loc[df['vcount'].idxmin()]
 
+    # Find the edge with the highest average speed
+    max_vspeed_edge = df.loc[df['vspeed'].idxmax()]
+
+    result = {
+        "min_vcount_edge": {
+            "link": min_vcount_edge['link'],
+            "vcount": min_vcount_edge['vcount']
+        },
+        "max_vspeed_edge": {
+            "link": max_vspeed_edge['link'],
+            "vspeed": max_vspeed_edge['vspeed']
+        }
+    }
+
+    return result
+
+# Example usage
+db_name = "big_data"
+start_time_str = "01/01/2024 00:00:00"
+end_time_str = "28/06/2024 23:59:59"
+result = execQueries(db_name, start_time_str, end_time_str)
+print(result)

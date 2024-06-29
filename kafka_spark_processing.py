@@ -10,11 +10,11 @@ def createDatabase(dbName):
         client = MongoClient('mongodb://127.0.0.1:27017/')
 
         # Check if the database exists
-        if dbName in client.list_database_names():
+        if "big_data" in client.list_database_names():
             print(f"Database already exists.")
         else:
             # Create the database by inserting a dummy document into a dummy collection
-            new_db = client[dbName]
+            new_db = client["big_data"]
             processed_data = new_db["db.processed_data"]
             raw_data = new_db["raw_data"]
             print(f"Database created successfully.")
@@ -31,7 +31,7 @@ def sparkConn():
             .appName('KafkaSparkProcessing') \
             .master('spark://bigdata-vm:7077') \
             .config('spark.jars.packages', "org.apache.spark:spark-streaming-kafka-0-10_2.12:3.4.1,org.apache.spark:spark-sql-kafka-0-10_2.12:3.4.1,org.mongodb.spark:mongo-spark-connector_2.12:3.0.1") \
-            .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/big_data_testing.big_data_testing") \
+            .config("spark.mongodb.output.uri", "mongodb://127.0.0.1/big_data.big_data") \
             .config("spark.sql.streaming.checkpointLocation", "/tmp/checkpoints") \
             .getOrCreate()
     except Exception as e:
@@ -56,7 +56,7 @@ def rawToMongo(batch_df):
     batch_df.write \
         .format("mongo") \
         .mode("append") \
-        .option("uri", "mongodb://127.0.0.1/big_data_testing.raw_data") \
+        .option("uri", "mongodb://127.0.0.1/big_data.raw_data") \
         .save()
 
 def processedToMongo(batch_df):
@@ -67,7 +67,7 @@ def processedToMongo(batch_df):
     result_df.write \
         .format("mongo") \
         .mode("append") \
-        .option("uri", "mongodb://127.0.0.1/big_data_testing.processed_data") \
+        .option("uri", "mongodb://127.0.0.1/big_data.processed_data") \
         .save()
 
 def process_batch(batch_df,batch_id):
